@@ -18,31 +18,33 @@
 #include "ble/BLE.h"
 #include "ble/gap/Gap.h"
 #include "ble/services/HeartRateService.h"
+#include "ble/services/Team2Service.h"
 #include "pretty_printer.h"
 #include "mbed-trace/mbed_trace.h"
 
 using namespace std::literals::chrono_literals;
 
-const static char DEVICE_NAME[] = "Heartrate";
+const static char DEVICE_NAME[] = "Team02_Heartrate_magnetometer";
 
 static events::EventQueue event_queue(/* event count */ 16 * EVENTS_EVENT_SIZE);
 
-class HeartrateDemo : ble::Gap::EventHandler {
+class TotalDemo : ble::Gap::EventHandler {
 public:
-    HeartrateDemo(BLE &ble, events::EventQueue &event_queue) :
+    TotalDemo(BLE &ble, events::EventQueue &event_queue) :
         _ble(ble),
         _event_queue(event_queue),
         _heartrate_uuid(GattService::UUID_HEART_RATE_SERVICE),
         _heartrate_value(100),
         _heartrate_service(ble, _heartrate_value, HeartRateService::LOCATION_FINGER),
+        _team2_uuid(0x2AFF),
+        _team2_service(ble),
         _adv_data_builder(_adv_buffer)
     {
     }
 
     void start()
     {
-        _ble.init(this, &HeartrateDemo::on_init_complete);
-
+        _ble.init(this, &TotalDemo::on_init_complete);
         _event_queue.dispatch_forever();
     }
 
@@ -81,8 +83,10 @@ private:
         );
 
         _adv_data_builder.setFlags();
-        _adv_data_builder.setAppearance(ble::adv_data_appearance_t::GENERIC_HEART_RATE_SENSOR);
+        // _adv_data_builder.setAppearance(ble::adv_data_appearance_t::GENERIC_HEART_RATE_SENSOR);
         _adv_data_builder.setLocalServiceList({&_heartrate_uuid, 1});
+        _adv_data_builder.setAppearance(ble::adv_data_appearance_t::HUMAN_INTERFACE_DEVICE_HID);
+        _adv_data_builder.setLocalServiceList({&_team2_uuid, 2});
         _adv_data_builder.setName(DEVICE_NAME);
 
         /* Setup advertising */
@@ -116,7 +120,7 @@ private:
             return;
         }
 
-        printf("Heart rate sensor advertising, please connect\r\n");
+        printf("Heart rate and magnetometer sensor advertising, please connect\r\n");
     }
 
     void update_sensor_value()
@@ -130,6 +134,7 @@ private:
         }
 
         _heartrate_service.updateHeartRate(_heartrate_value);
+        _team2_service.updateTeam2();
     }
 
     /* these implement ble::Gap::EventHandler */
@@ -163,6 +168,10 @@ private:
     uint16_t _heartrate_value;
     HeartRateService _heartrate_service;
 
+    UUID _team2_uuid;
+    Team2Service _team2_service;
+
+
     uint8_t _adv_buffer[ble::LEGACY_ADVERTISING_MAX_SIZE];
     ble::AdvertisingDataBuilder _adv_data_builder;
 };
@@ -180,7 +189,7 @@ int main()
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(schedule_ble_events);
 
-    HeartrateDemo demo(ble, event_queue);
+    TotalDemo demo(ble, event_queue);
     demo.start();
 
     return 0;
