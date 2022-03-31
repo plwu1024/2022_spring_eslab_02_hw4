@@ -24,7 +24,7 @@
 
 using namespace std::literals::chrono_literals;
 
-const static char DEVICE_NAME[] = "Team02_Heartrate_magnetometer";
+const static char DEVICE_NAME[] = "Team02_BLE";
 
 static events::EventQueue event_queue(/* event count */ 16 * EVENTS_EVENT_SIZE);
 
@@ -36,7 +36,7 @@ public:
         _heartrate_uuid(GattService::UUID_HEART_RATE_SERVICE),
         _heartrate_value(100),
         _heartrate_service(ble, _heartrate_value, HeartRateService::LOCATION_FINGER),
-        _team2_uuid(0x2AFF),
+        _team2_uuid(GattService::UUID_HUMAN_INTERFACE_DEVICE_SERVICE),
         _team2_service(ble),
         _adv_data_builder(_adv_buffer)
     {
@@ -83,7 +83,7 @@ private:
         );
 
         _adv_data_builder.setFlags();
-        // _adv_data_builder.setAppearance(ble::adv_data_appearance_t::GENERIC_HEART_RATE_SENSOR);
+        _adv_data_builder.setAppearance(ble::adv_data_appearance_t::GENERIC_HEART_RATE_SENSOR);
         _adv_data_builder.setLocalServiceList({&_heartrate_uuid, 1});
         _adv_data_builder.setAppearance(ble::adv_data_appearance_t::HUMAN_INTERFACE_DEVICE_HID);
         _adv_data_builder.setLocalServiceList({&_team2_uuid, 2});

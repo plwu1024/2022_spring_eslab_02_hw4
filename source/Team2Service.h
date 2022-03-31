@@ -18,7 +18,7 @@ public:
         ble(_ble),
         // valueBytes(hrmCounter),
         hrmRate(
-            0x2AFF,
+            GattService::UUID_HUMAN_INTERFACE_DEVICE_SERVICE,
             pDataXYZ.getPointer(),
             pDataXYZ.getNumValueBytes(),
             pDataXYZ.getNumValueBytes(),
