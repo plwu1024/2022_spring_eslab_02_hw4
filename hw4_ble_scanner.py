@@ -1,132 +1,111 @@
-# ble_scan_connect.py:
-from bluepy.btle import Peripheral, UUID
-from bluepy.btle import Scanner, DefaultDelegate
+from bluepy.btle import Peripheral, UUID, Scanner, DefaultDelegate
 import struct
+
+TARGET_DEVICE_NAME = "Team02_BLE"
+TARGET_DEVICE_ADDRESS = "ee:78:d5:9c:5d:eb"
+
+HEARTRATE_SERVICE_UUID = 0x180D
+HEARTRATE_CHARACTERISTIC_UUID = 0x2A37
+MAGNETOMETER_SERVICE_UUID = 0x1812
+MAGNETOMETER_CHARACTERISTIC_UUID = 0x1812
+
+NOTIFY_SETUP = b"\x01\x00"
+
+
 class ScanDelegate(DefaultDelegate):
     def __init__(self):
         DefaultDelegate.__init__(self)
+
     def handleDiscovery(self, dev, isNewDev, isNewData):
-        if isNewDev:
-            print ("Discovered device", dev.addr)
-        elif isNewData:
-            print ("Received new data from", dev.addr)
+        # if isNewDev:
+        #     print ("Discovered device", dev.addr)
+        # elif isNewData:
+        #     print ("Received new data from", dev.addr, )
+        pass
+
+
+print("Searching for device with name {} in 5 sec...".format(TARGET_DEVICE_NAME))
 scanner = Scanner().withDelegate(ScanDelegate())
-devices = scanner.scan(10.0)
-n=0
-addr = []
+scanner.scan(5.0)
+devices = list(scanner.getDevices())
+
+target_devices = []
 for dev in devices:
-    if dev.addr == "ee:78:d5:9c:5d:eb":
-        print ("%d: Device %s (%s), RSSI=%d dB" % (n, dev.addr, 
-        dev.addrType, dev.rssi))
-        for (adtype, desc, value) in dev.getScanData():
-            print (" %s = %s" % (desc, value))
-    addr.append(dev.addr)
-    n += 1
-    
-number = input('Enter your device number: ')
-print ('Device', number)
-num = int(number)
-print (addr[num])
-#
-print ("Connecting...")
-dev = Peripheral(addr[num], 'random')
-#
-print ("Services...")
-for svc in dev.services:
-    print (str(svc))
-#
-import struct
-from bluepy.btle import *
+    if dev.addr == TARGET_DEVICE_ADDRESS or dev.getValueText(0x09) == TARGET_DEVICE_NAME:
+        target_devices.append(dev)
+
+if len(target_devices) == 0:
+    print("No match for known device name or address. Showing unmatched candidates.")
+    target_devices = devices
+
+for idx, dev in enumerate(target_devices):
+    print("{: <3d}: {} ({}), RSSI={} dB, {: 2d} services. NAME={}".format(
+        idx, dev.addr, dev.addrType, dev.rssi, len(dev.getScanData()), dev.getValueText(0x09)))
+    for (adtype, desc, value) in dev.getScanData():
+        print("    {: <2d}, {} = {}".format(adtype, desc, value))
+
+if len(target_devices) == 1:
+    print("Selecting the only candidate automatically...", end="")
+    dev = Peripheral(target_devices[0])
+    print("Connected")
+else:
+    number = int(input('Enter your device number: '))
+    print("Connecting device {}...".format(number), end="")
+    dev = Peripheral(devices[num])
+    print("Connected")
 
 
-class MyDelegate(DefaultDelegate):
-    def __init__(self):
+class DeviceDelegate(DefaultDelegate):
+    def __init__(self, heartrateHandleNum, magnetometerHandleNum):
         DefaultDelegate.__init__(self)
+        self.heartrateHandleNum = heartrateHandleNum
+        self.magnetometerHandleNum = magnetometerHandleNum
+        self.heartrate = 0
+        self.magX = 0
+        self.magY = 0
+        self.magZ = 0
 
     def handleNotification(self, cHandle, data):
-        if cHandle == 13:
-            print(f"heartrate: {int.from_bytes(data, byteorder='big')} bpm")
-        elif cHandle == 19:
-            # print(data)
-            # print(data[0])
-            print(f"magX: {data[0]}")
-            print(f"magY: {data[1]}")
-            print(f"magZ: {data[2]}")
-            
-            # print(len(data))
-            # buffer = struct.unpack("BBB", data)
-            # print(f"X: {buffer[0]}")
-            # print(f"Y: {buffer[1]}")
-            # print(f"Z: {buffer[2]}")
-
-
+        if cHandle == self.heartrateHandleNum:
+            # print("heart rate: {: 3d} bpm".format(int.from_bytes(data, byteorder='big')))
+            self.heartrate = int.from_bytes(data, byteorder='big')
+        elif cHandle == self.magnetometerHandleNum:
+            # print("magX: {: 3d}, magY: {: 3d}, magZ: {: 3d}".format(data[0], data[1], data[2]))
+            # buffer = struct.unpack("BBB", data[0, 3])
+            self.magX = data[0]
+            self.magY = data[1]
+            self.magZ = data[2]
 
 
 try:
-    # testService = dev.getServiceByUUID(UUID(0xfff0))
-    # for ch in testService.getCharacteristics():
-    #     print (str(ch))
+    heartrateService = dev.getServiceByUUID(HEARTRATE_SERVICE_UUID)
+    heartrateMeasureCh = heartrateService.getCharacteristics(
+        HEARTRATE_CHARACTERISTIC_UUID)[0]
+    heartrateHandle = heartrateMeasureCh.getHandle()
+    heartrateCCCDHandle = heartrateHandle + 1
+    dev.writeCharacteristic(heartrateCCCDHandle,
+                            NOTIFY_SETUP, withResponse=True)
 
-    # ch = dev.getCharacteristics(uuid=UUID(0xfff1))[0]
-    # if (ch.supportsRead()):
-    #     print (ch.read())
+    magnetometerService = dev.getServiceByUUID(MAGNETOMETER_SERVICE_UUID)
+    magnetometerMeasureCh = magnetometerService.getCharacteristics(
+        MAGNETOMETER_CHARACTERISTIC_UUID)[0]
+    magnetometerHandle = magnetometerMeasureCh.getHandle()
+    magnetometerCCCDHandle = magnetometerHandle + 1
+    dev.writeCharacteristic(magnetometerCCCDHandle,
+                            NOTIFY_SETUP, withResponse=True)
 
-    dev.setDelegate(MyDelegate())
+    deviceDelegate = DeviceDelegate(heartrateHandle, magnetometerHandle)
+    dev.withDelegate(deviceDelegate)
+    print()
 
-    # print("Connected")
-    for idx, i in enumerate(dev.getDescriptors()):
-        print(f"{idx} UUID: {i.uuid}")
-
-    notify_setup = b"\x01\x00"
-    # service1 = dev.getServiceByUUID(UUID(0x180D))
-    ch1 = dev.getCharacteristics(uuid=UUID(0x2A37))[0]
-    handle1 = ch1.getHandle()
-    handle1 += 1
-    print(f"handle: {handle1}")
-    dev.writeCharacteristic(handle1, notify_setup, withResponse=True)
-    # for ch in service1.getCharacteristics():
-    #     print (str(ch), ch.supportsRead())
-    #     if(ch.supportsRead()):
-    #         handle = ch.getHandle()
-    #         print(dev.readCharacteristic(handle))
-
-    # service2 = dev.getServiceByUUID(UUID(0x1812))
-    ch2 = dev.getCharacteristics(uuid=UUID(0x1812))[0]
-    handle2 = ch2.getHandle()
-    handle2 += 1
-    dev.writeCharacteristic(handle2, notify_setup, withResponse=True)
-    # for ch in service2.getCharacteristics():
-    #     print (str(ch), ch.supportsRead())
-    #     handle = ch.getHandle()
-    #     dev.writeCharacteristic(handle, notify_setup, withResponse=True)
-    # ch = ch + 2
-    
-    
-    # handle += 2
-    # print(f"the handle is: {handle}")
-    # if (ch.supportsRead()):
-    #     print (ch.read())
-    
-    # notify_setup = b"\x02\x00"
-    # dev.writeCharacteristic(handle, notify_setup, withResponse=True)
-    # print("writing done")
     while True:
-        if dev.waitForNotifications(1.0):
-            print("notifications")
-    #         print("heart rate:")
-    #         dev.readCharacteristic(handle1)
-    #         print("magnetometer sensor:")
-    #         dev.readCharacteristic(handle2)
-    #         break
-    
-    # for i in dev.getDescriptors():
-    #     print(f"UUID: {i.uuid}")
-
+        if dev.waitForNotifications(5.0):
+            print("\rHeartrate: {: >3d} bpm, Magnetometer: ({: >3d}, {: >3d}, {: >3d})"
+                  .format(deviceDelegate.heartrate, deviceDelegate.magX,
+                          deviceDelegate.magY, deviceDelegate.magZ), end="")
+        else:
+            print("\nNo any notification in 5 sec. Quitting...")
+            break
 
 finally:
-    dev.disconnect() 
-#
-
-
-
-
+    dev.disconnect()

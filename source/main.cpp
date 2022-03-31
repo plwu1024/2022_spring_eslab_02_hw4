@@ -79,15 +79,17 @@ private:
 
         ble::AdvertisingParameters adv_parameters(
             ble::advertising_type_t::CONNECTABLE_UNDIRECTED,
+            
             ble::adv_interval_t(ble::millisecond_t(100))
         );
 
         _adv_data_builder.setFlags();
-        _adv_data_builder.setAppearance(ble::adv_data_appearance_t::GENERIC_HEART_RATE_SENSOR);
-        _adv_data_builder.setLocalServiceList({&_heartrate_uuid, 1});
-        _adv_data_builder.setAppearance(ble::adv_data_appearance_t::HUMAN_INTERFACE_DEVICE_HID);
-        _adv_data_builder.setLocalServiceList({&_team2_uuid, 2});
+        // _adv_data_builder.setAppearance(ble::adv_data_appearance_t::GENERIC_HEART_RATE_SENSOR);
+        // _adv_data_builder.setLocalServiceList({&_heartrate_uuid, 1});
         _adv_data_builder.setName(DEVICE_NAME);
+        _adv_data_builder.setAppearance(ble::adv_data_appearance_t::HUMAN_INTERFACE_DEVICE_HID);
+        _adv_data_builder.setLocalServiceList({&_team2_uuid, 1});
+
 
         /* Setup advertising */
 
